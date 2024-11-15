@@ -1,28 +1,26 @@
-from selenium import webdriver
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
 import unittest
 import time
-
+from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.support.wait import WebDriverWait
+
+from driver_setup import get_driver
+from tests.audio_player import AudioPlayer, play_audio_in_thread
+from tests.custom_selectors import Selectors
 from selenium.webdriver.support import expected_conditions as EC
+
 
 
 class ShazamTests(unittest.TestCase):
 
     def setUp(self):
-        options = webdriver.ChromeOptions()
-        options.add_experimental_option("prefs", {
-            "profile.default_content_setting_values.media_stream_mic": 1,
-        })
-        self.driver = webdriver.Chrome(options=options)
+        self.driver = get_driver()
         self.driver.get("https://www.shazam.com/")
-        self.driver.maximize_window()
 
     def test_search_music_by_name(self):
         driver = self.driver
-        driver.find_element(By.CLASS_NAME, "Search_icon__Poc_G").click()
-        search_box = driver.find_element(By.CLASS_NAME, "Search_input__HkJTl")
+        driver.find_element(By.CLASS_NAME, Selectors.SEARCH_ICON).click()
+        search_box = driver.find_element(By.CLASS_NAME, Selectors.SEARCH_INPUT)
         search_box.send_keys("Shape of You")
         time.sleep(2)
         search_box.send_keys(Keys.RETURN)
@@ -31,26 +29,25 @@ class ShazamTests(unittest.TestCase):
         try:
             title = driver.title
             artist = ' '.join(title.split()[4:6])
-            song_text = driver.find_element(By.CLASS_NAME, "Lyrics_lyrics__f3QkJ").text
+            song_text = driver.find_element(By.CLASS_NAME, Selectors.LYRICS).text
 
             print("Information about track:")
             print(f"Title: {title}")
             print(f"Artist: {artist}")
             print(f"Song text: {' '.join(song_text.split()[1:])}")
 
-            self.assertTrue(title and artist, "Main information about track was not find")
+            self.assertTrue(title and artist, "Main information about track was not found")
         except Exception as e:
             self.fail(f"Could not find full track information: {e}")
 
     def test_check_chrome_extension(self):
         driver = self.driver
         try:
-            driver.find_element(By.CSS_SELECTOR, 'a[data-test-id="home_userevent_headerElement_appsMenu"]').click()
+            driver.find_element(By.CSS_SELECTOR, Selectors.APPS_MENU).click()
             time.sleep(2)
-            chrome_ext = driver.find_element(By.CLASS_NAME,'AppsPage_browserLink__YK5zW')
+            chrome_ext = driver.find_element(By.CLASS_NAME, Selectors.BROWSER_LINK)
             driver.execute_script("arguments[0].scrollIntoView(); window.scrollBy(0, -100)", chrome_ext)
             chrome_ext.click()
-            driver.find_element(By.CLASS_NAME, "UywwFc-vQzf8d").click()
             self.assertIn("chromewebstore.google.com", driver.current_url, "Chrome extension page did not load")
         except Exception as e:
             self.fail("The Chrome Extension option is not available or the site structure has changed")
@@ -58,16 +55,16 @@ class ShazamTests(unittest.TestCase):
     def test_find_concert_for_artist(self):
         driver = self.driver
         try:
-            driver.find_element(By.CSS_SELECTOR, 'a[data-test-id="home_userevent_headerElement_concertsMenu"]').click()
+            driver.find_element(By.CSS_SELECTOR, Selectors.CONCERTS_MENU).click()
             time.sleep(2)
-            input = driver.find_element(By.CSS_SELECTOR, "input[placeholder='Artists or bands']")
+            input = driver.find_element(By.CSS_SELECTOR, Selectors.ARTIST_INPUT)
             input.click()
             input.send_keys("Boombox")
             time.sleep(2)
             input.send_keys(Keys.RETURN)
             time.sleep(2)
 
-            results = driver.find_elements(By.CLASS_NAME, "page_resultList__f_5d8")
+            results = driver.find_elements(By.CLASS_NAME, Selectors.RESULT_LIST)
             self.assertGreater(len(results), 0, "No results found for 'Boombox'")
 
             print(f"Result found:\n{results[0].text}")
@@ -76,13 +73,19 @@ class ShazamTests(unittest.TestCase):
 
     def test_search_music(self):
         driver = self.driver
+
+        audio_file = "path_to_file.mp3"
+        audio_player = AudioPlayer(audio_file)
+        audio_thread = play_audio_in_thread(audio_player)
+
         shazam_button = WebDriverWait(driver, 10).until(
-            EC.element_to_be_clickable((By.CLASS_NAME, "FloatingShazamButton_shazamButton__WD_TY"))
+            EC.element_to_be_clickable((By.CLASS_NAME, Selectors.SHAZAM_BUTTON))
         )
         shazam_button.click()
+        time.sleep(10)
         try:
-            time.sleep(10)
-
+            audio_player.stop()
+            audio_thread.join()
             self.assertTrue(driver.title, "Main information about track was not find")
             print(f"Information about track: {driver.title}")
         except Exception as e:
@@ -91,9 +94,9 @@ class ShazamTests(unittest.TestCase):
     def test_get_top_song(self):
         driver = self.driver
         try:
-            driver.find_element(By.CSS_SELECTOR, 'a[data-test-id="home_userevent_headerElement_chartsMenu"]').click()
+            driver.find_element(By.CSS_SELECTOR, Selectors.CHARTS_MENU).click()
             time.sleep(2)
-            first_track = driver.find_element(By.CLASS_NAME, "SongItem-module_mainItemsContainer__9MRor").text
+            first_track = driver.find_element(By.CLASS_NAME, Selectors.FIRST_TRACK).text
             title = ' '.join(first_track.split()[0:2])
             artist = ''.join(first_track.split()[2])
 
